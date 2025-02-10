@@ -1,3 +1,3 @@
-export function messageLogger(payload){
-  console.log(`Logging message: ${payload.message}`);
+export function findSlackChannel(payload) {
+  console.log(`Logging message: ${payload.teamName}`);
 }
