@@ -32,4 +32,4 @@ app:
   id: ari:cloud:ecosystem::app/f4d6c30d-c40b-46ab-a555-406acedd08a7
 permissions:
   scopes:
-    - read:page:comment:confluence
+    - read:page:confluence
