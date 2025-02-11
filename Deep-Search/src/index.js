@@ -36,8 +36,6 @@ export async function deepSearch(payload) {
   const keywords = await extractKeywords(query);
   console.log(`Extracted keywords: ${keywords}`);
 
-  return { message: `Extracted keywords: ${keywords}` };
-
   try {
     const response = await api
       .asUser()
@@ -79,8 +77,10 @@ export async function deepSearch(payload) {
       const content = await contentResponse.json();
       const pageContent = content.body.storage.value;
 
-      // Look for query matches in content
-      if (pageContent.includes(query)) {
+      // Look for if any of the keywords is in content
+      if (
+        keywords.split(" ").some((keyword) => pageContent.includes(keyword))
+      ) {
         // Extract relevant context around the query match
         const matchIndex = pageContent.indexOf(query);
         const contextStart = Math.max(0, matchIndex - 150);
@@ -92,7 +92,7 @@ export async function deepSearch(payload) {
           pageId: page.id,
           url: page._links.webui,
           relevantContext: relevantContext,
-          message: `Found relevant information in page "${page.title}". The query "${payload.query}" appears in this context: "...${relevantContext}..."`,
+          message: `Found relevant information in page "${page.title}". The query "${query}" appears in this context: "...${relevantContext}..."`,
         };
         console.log("Found matching content:", result);
         return result;
