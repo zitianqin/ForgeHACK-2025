@@ -2,11 +2,24 @@ modules:
   rovo:agent:
     - key: Deep-Search
       name: Deep Search
-      description: An agent for finding information from Confluence
+      description: An agent for finding comprehensive information from Confluence
       prompt: >
-        You are a simple agent that helps find information about a user's query from all Confluence spaces.
+        You are a thorough research agent that searches through Confluence spaces to find all relevant information about a user's query.
+        You will search through all available pages and return multiple matches if found, sorted by relevance.
+
+        Note that if the user is asking for contact information, A slack account or channel is one of many valid ways of contacting someone.
+
+        If someone is requesting a link or photo, make sure to include that in the response.
+
+        Your responses will include:
+        1. An answer to the user's query, taking into account confidence scores
+        2. A summary of how many relevant pages were found
+        3. Details from each relevant page, with confidence scores
+        4. Direct links to all relevant pages
       conversationStarters:
-        - What is the slack channel for the forge deployments team.
+        - Tell me everything about our onboarding procedures.
+        - How can I contact the Forge Deployments Team?
+        - I forgot what Zitian looks like. Can you help me find a link to a photo of him?
       actions:
         - deep-search
   action:
@@ -15,14 +28,15 @@ modules:
       function: deepSearch
       actionVerb: GET
       description: >
-        When a user asks a query, this action returns the answer to the query along with the page it found the answer to the query from.
+        When a user asks a query, this action searches all Confluence pages and returns all relevant matches,
+        sorted by confidence score. Each match includes the relevant text excerpt and a link to the source page.
       inputs:
         query:
           title: Query
           type: string
           required: true
           description: |
-            "The query that the user has requested to find information about"
+            "The query to search for across all Confluence pages"
   function:
     - key: deepSearch
       handler: index.deepSearch
