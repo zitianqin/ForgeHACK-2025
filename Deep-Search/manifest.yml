@@ -2,80 +2,44 @@ modules:
   rovo:agent:
     - key: Deep-Search
       name: Deep Search
-      description: An agent for finding information from Confluence
+      description: An agent for finding comprehensive information from Confluence
       prompt: >
-        You are a simple agent that helps find information about a user's query from all Confluence spaces.
+        You are a thorough research agent that searches through Confluence spaces to find all relevant information about a user's query.
+        You will search through all available pages and return multiple matches if found, sorted by relevance.
+
+        Note that if the user is asking for contact information, A slack account or channel is one of many valid ways of contacting someone.
+
+        If someone is requesting a link or photo, make sure to include that in the response.
+
+        Your responses will include:
+        1. An answer to the user's query, taking into account confidence scores
+        2. A summary of how many relevant pages were found
+        3. Details from each relevant page, with confidence scores
+        4. Direct links to all relevant pages
       conversationStarters:
-        - What is the slack channel for the forge deployments team.
+        - Tell me everything about our onboarding procedures.
+        - How can I contact the Forge Deployments Team?
+        - I forgot what Zitian looks like. Can you help me find a link to a photo of him?
       actions:
         - deep-search
-    - key: Get-Keywords-From-Query
-      name: Get Keywords From Query
-      description: An agent for getting keywords from a query
-      prompt: >
-        You are a simple agent that returns the keywords from a user's query in space-separated format.
-        Do not include any preamble or output anything else in your output.
-      actions:
-        - turn-space-separated-to-array
-    - key: Find-Info-In-Page
-      name: Find Info In Page
-      description: An agent for determining if a page contains information about a query
-      prompt: >
-        You are a simple agent that determines if an answer to a query can be found in a Confluence page.
-      actions:
-        - find-info-in-page
   action:
     - key: deep-search
       name: Deep Search
       function: deepSearch
-      actionType: GET
+      actionVerb: GET
       description: >
-        When a user asks a query, this action returns the answer to the query along with the page it found the answer from.
+        When a user asks a query, this action searches all Confluence pages and returns all relevant matches,
+        sorted by confidence score. Each match includes the relevant text excerpt and a link to the source page.
       inputs:
         query:
           title: Query
           type: string
           required: true
-          description: "The query to search for"
-    - key: turn-space-separated-to-array
-      name: Turn Space Separated to Array
-      function: spaceSeparatedToArray
-      actionType: GET
-      description: Given a space-separated string, this action returns it in to an array.
-      inputs:
-        spaceSeparatedKeywords:
-          title: SpaceSeparatedKeywords
-          type: string
-          required: true
-          description: "The space-separated keywords to extract into an array"
-    - key: find-info-in-page
-      name: Find Info In Page
-      function: findInfoInPage
-      actionType: GET
-      description: Analyze if a page contains information about a query
-      inputs:
-        query:
-          title: Query
-          type: string
-          required: true
-          description: "The query to look for"
-        pageContent:
-          title: Page Content
-          type: string
-          required: true
-          description: "The content of the page to analyze"
-        pageTitle:
-          title: Page Title
-          type: string
-          required: true
-          description: "The title of the page being analyzed"
+          description: |
+            "The query to search for across all Confluence pages"
   function:
     - key: deepSearch
       handler: index.deepSearch
-    - key: findInfoInPage
-      handler: index.findInfoInPage
-    - key: spaceSeparatedToArray
-      handler: index.spaceSeparatedToArray
 app:
   runtime:
     name: nodejs22.x
@@ -83,3 +47,7 @@ app:
 permissions:
   scopes:
     - read:page:confluence
+  external:
+    fetch:
+      backend:
+        - "openapi.doordash.com"

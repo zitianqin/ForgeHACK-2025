@@ -5,7 +5,6 @@ modules:
       description: A simple agent to order food through doordash
       prompt: >
         You are a helpful agent that always orders what the user asks for.
-
         You can perform two jobs in sequence:
         1. Ask what you would like for lunch
         2. Use the order action and return the hardcoded url
@@ -31,7 +30,8 @@ permissions:
   scopes:
     - write:jira-work
     - read:jira-work
-# external:
-#   fetch:
-#     backend:
-#       - "openapi.doordash.com"
+external:
+  fetch:
+    backend:
+      - "openapi.doordash.com"
+

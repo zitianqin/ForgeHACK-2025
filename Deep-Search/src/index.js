@@ -1,60 +1,130 @@
 import api, { route } from "@forge/api";
+import Groq from "groq-sdk";
 
-export async function findInfoInPage(payload) {
-  const { query, pageContent, pageTitle } = payload;
-  console.log(`Analyzing page content for query: ${query}`);
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
-  // Use the page analyzer agent to determine if the page contains an answer
-  // Look for query keywords in content and extract relevant information
-  if (pageContent.toLowerCase().includes(query.toLowerCase())) {
-    const matchIndex = pageContent.toLowerCase().indexOf(query.toLowerCase());
-    const contextStart = Math.max(0, matchIndex - 150);
-    const contextEnd = Math.min(pageContent.length, matchIndex + 150);
-    const relevantContext = pageContent.slice(contextStart, contextEnd);
+async function extractKeywords(query) {
+  const prompt = `
+    Extract only the important keywords from this query as space-separated words.
+    Rules:
+    - Return ONLY the keywords, no other text
+    - Separate keywords with single spaces
+    - Remove articles, prepositions, and other stop words
+    - Keep only meaningful search terms
+    - Do not include punctuation
+    - Do not include explanatory text
+    
+    Query: "${query}"
+    `;
 
-    console.log(
-      `Found relevant information in page "${pageTitle}": ${relevantContext}`
-    );
+  const completion = await groq.chat.completions.create({
+    messages: [{ role: "user", content: prompt }],
+    model: "mixtral-8x7b-32768",
+    temperature: 0.1, // Low temperature for more consistent output
+  });
 
-    return {
-      found: true,
-      answer: relevantContext,
-      confidence: "high",
-      context: `Found in section: "${relevantContext}"`,
-    };
-  }
-
-  console.log(`No relevant information found in page "${pageTitle}"`);
-
-  return {
-    found: false,
-    answer: undefined,
-    confidence: "none",
-    context: `No relevant information found in page "${pageTitle}"`,
-  };
+  return completion.choices[0].message.content.trim();
 }
 
-/**
- * Convert space-separated keywords to an array
- * @param {*} spaceSeparatedKeywords - Space-separated keywords
- * @returns {Array} - Array of keywords
- */
-export async function spaceSeparatedToArray(spaceSeparatedKeywords) {
-  console.log(
-    `Converting space-separated keywords to array: ${spaceSeparatedKeywords}`
-  );
-  return spaceSeparatedKeywords.toLowerCase().split(" ").join(" ");
+async function analyseContent(query, pageContent) {
+  const prompt = `
+    Analyze if this content answers or partially answers the query: "${query}"
+    
+    Content: """
+    ${pageContent}
+    """
+
+    Note that if the user is asking for contact information, A slack account or channel is one of many valid ways of contacting someone.
+
+    If someone is requesting a link or photo, make sure to include that in the response.
+    
+    Return ONLY a JSON object with this format:
+    {
+      "isMatch": boolean,
+      "relevantText": string or null,
+      "confidence": number between 0-1
+    }
+    `;
+
+  const completion = await groq.chat.completions.create({
+    messages: [{ role: "user", content: prompt }],
+    model: "mixtral-8x7b-32768",
+    temperature: 0.1,
+  });
+
+  return JSON.parse(completion.choices[0].message.content);
 }
 
-export async function deepSearch(payload, context) {
-  const query = payload.query.toLowerCase();
+function cleanStyleTags(content) {
+  // Remove common style-related tags while preserving their content
+  const styleTags = [
+    "strong",
+    "b",
+    "i",
+    "em",
+    "italic",
+    "bold",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "u",
+    "strike",
+    "style",
+    "span",
+    "font",
+    "color",
+    "align",
+    "center",
+  ];
+
+  let cleanText = content;
+
+  // Create regex pattern for opening and closing tags
+  styleTags.forEach((tag) => {
+    // Remove opening tags with any attributes
+    cleanText = cleanText.replace(new RegExp(`<${tag}[^>]*>`, "gi"), "");
+    // Remove closing tags
+    cleanText = cleanText.replace(new RegExp(`</${tag}>`, "gi"), "");
+  });
+
+  // Remove style attributes from remaining tags
+  cleanText = cleanText.replace(/\s*style="[^"]*"/gi, "");
+
+  return cleanText;
+}
+
+function cleanEmoticons(content) {
+  // Remove Confluence emoticon tags
+  let cleanText = content.replace(/<ac:emoticon[^>]*\/>/g, "");
+
+  // Remove emoji shortnames like :smile:
+  cleanText = cleanText.replace(/:[a-zA-Z0-9_+-]+:/g, "");
+
+  // Remove unicode emojis
+  cleanText = cleanText.replace(/[\u{1F300}-\u{1F9FF}\u{2700}-\u{27BF}]/gu, "");
+
+  // Remove nbsp after emoticons
+  cleanText = cleanText.replace(/&nbsp;/g, " ");
+
+  return cleanText;
+}
+
+export async function deepSearch(payload) {
+  const query = payload.query;
   console.log(`Searching Confluence for query: ${query}`);
 
-  try {
-    // Get keywords from query using the keywords agent
-    const keywords = await context.invoke("get-keywords-from-query", { query });
-    console.log(`Extracted keywords: ${keywords}`);
+  const results = [];
 
+  // Extract keywords from query
+  const keywords = await extractKeywords(query);
+  console.log(`Extracted keywords: ${keywords}`);
+
+  try {
     const response = await api
       .asUser()
       .requestConfluence(route`/wiki/api/v2/pages?limit=100`, {
@@ -93,32 +163,42 @@ export async function deepSearch(payload, context) {
       }
 
       const content = await contentResponse.json();
-      const pageContent = content.body.storage.value;
+      let cleanContent = cleanStyleTags(content.body.storage.value);
+      cleanContent = cleanEmoticons(cleanContent);
+      console.log(`Cleaned page content: ${cleanContent}`);
 
-      // Use findInfoInPage to analyze the page content
-      const pageAnalysis = await context.invoke("find-info-in-page", {
-        query: keywords,
-        pageContent: pageContent,
-        pageTitle: page.title,
-      });
+      // Look for if any of the keywords is in content
+      if (
+        keywords.split(" ").some((keyword) => cleanContent.includes(keyword))
+      ) {
+        // Analyse content with LLM
+        const analysis = await analyseContent(query, cleanContent);
 
-      if (pageAnalysis.found) {
-        const result = {
-          pageTitle: page.title,
-          pageId: page.id,
-          url: page._links.webui,
-          answer: pageAnalysis.answer,
-          confidence: pageAnalysis.confidence,
-          message: `Found relevant information in page "${page.title}". ${pageAnalysis.context}`,
-        };
-        console.log("Found matching content:", result);
-        return result;
+        if (analysis.isMatch) {
+          results.push({
+            pageTitle: page.title,
+            pageId: page.id,
+            url: page._links.webui,
+            relevantText: analysis.relevantText,
+            confidence: analysis.confidence,
+          });
+        }
       }
     }
 
-    const notFoundMessage = `Could not find any information matching "${payload.query}". Please try rephrasing your query.`;
-    console.log("No matching content found:", notFoundMessage);
-    return { message: notFoundMessage };
+    if (results.length > 0) {
+      // Sort results by confidence
+      results.sort((a, b) => b.confidence - a.confidence);
+      return {
+        matches: results,
+        message: `Found ${results.length} relevant pages. Results are sorted by confidence.`,
+      };
+    }
+
+    return {
+      matches: [],
+      message: `Could not find any information matching "${payload.query}". Please try rephrasing your query.`,
+    };
   } catch (error) {
     console.error("Error searching for information:", error);
     return {
