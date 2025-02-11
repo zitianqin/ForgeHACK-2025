@@ -28,6 +28,72 @@ async function extractKeywords(query) {
   return completion.choices[0].message.content.trim();
 }
 
+async function analyseContent(query, pageContent) {
+  const prompt = `
+    Analyze if this content answers the query: "${query}"
+    
+    Content: """
+    ${pageContent}
+    """
+    
+    Return ONLY a JSON object with this format:
+    {
+      "isMatch": boolean,
+      "relevantText": string or null,
+      "confidence": number between 0-1
+    }
+    `;
+
+  const completion = await groq.chat.completions.create({
+    messages: [{ role: "user", content: prompt }],
+    model: "mixtral-8x7b-32768",
+    temperature: 0.1,
+  });
+
+  return JSON.parse(completion.choices[0].message.content);
+}
+
+function cleanStyleTags(content) {
+  // Remove common style-related tags while preserving their content
+  const styleTags = [
+    "strong",
+    "b",
+    "i",
+    "em",
+    "italic",
+    "bold",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "u",
+    "strike",
+    "style",
+    "span",
+    "font",
+    "color",
+    "align",
+    "center",
+  ];
+
+  let cleanText = content;
+
+  // Create regex pattern for opening and closing tags
+  styleTags.forEach((tag) => {
+    // Remove opening tags with any attributes
+    cleanText = cleanText.replace(new RegExp(`<${tag}[^>]*>`, "gi"), "");
+    // Remove closing tags
+    cleanText = cleanText.replace(new RegExp(`</${tag}>`, "gi"), "");
+  });
+
+  // Remove style attributes from remaining tags
+  cleanText = cleanText.replace(/\s*style="[^"]*"/gi, "");
+
+  return cleanText;
+}
+
 export async function deepSearch(payload) {
   const query = payload.query;
   console.log(`Searching Confluence for query: ${query}`);
@@ -75,27 +141,27 @@ export async function deepSearch(payload) {
       }
 
       const content = await contentResponse.json();
-      const pageContent = content.body.storage.value;
+      const pageContent = cleanStyleTags(content.body.storage.value);
+      console.log(`Page content: ${pageContent}`);
 
       // Look for if any of the keywords is in content
       if (
         keywords.split(" ").some((keyword) => pageContent.includes(keyword))
       ) {
-        // Extract relevant context around the query match
-        const matchIndex = pageContent.indexOf(query);
-        const contextStart = Math.max(0, matchIndex - 150);
-        const contextEnd = Math.min(pageContent.length, matchIndex + 150);
-        const relevantContext = pageContent.slice(contextStart, contextEnd);
+        // If a keyword is found, call the llm with the query and the page content to see if a match is found. if not, continue
+        // Analyze content with LLM
+        const analysis = await analyseContent(query, pageContent);
 
-        const result = {
-          pageTitle: page.title,
-          pageId: page.id,
-          url: page._links.webui,
-          relevantContext: relevantContext,
-          message: `Found relevant information in page "${page.title}". The query "${query}" appears in this context: "...${relevantContext}..."`,
-        };
-        console.log("Found matching content:", result);
-        return result;
+        if (analysis.isMatch) {
+          return {
+            pageTitle: page.title,
+            pageId: page.id,
+            url: page._links.webui,
+            relevantText: analysis.relevantText,
+            confidence: analysis.confidence,
+            message: `Found matching content in "${page.title}" (confidence: ${analysis.confidence})`,
+          };
+        }
       }
     }
 
