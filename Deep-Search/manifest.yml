@@ -9,23 +9,73 @@ modules:
         - What is the slack channel for the forge deployments team.
       actions:
         - deep-search
+    - key: Get-Keywords-From-Query
+      name: Get Keywords From Query
+      description: An agent for getting keywords from a query
+      prompt: >
+        You are a simple agent that returns the keywords from a user's query in space-separated format.
+        Do not include any preamble or output anything else in your output.
+      actions:
+        - turn-space-separated-to-array
+    - key: Find-Info-In-Page
+      name: Find Info In Page
+      description: An agent for determining if a page contains information about a query
+      prompt: >
+        You are a simple agent that determines if an answer to a query can be found in a Confluence page.
+      actions:
+        - find-info-in-page
   action:
     - key: deep-search
       name: Deep Search
       function: deepSearch
-      actionVerb: GET
+      actionType: GET
       description: >
-        When a user asks a query, this action returns the answer to the query along with the page it found the answer to the query from.
+        When a user asks a query, this action returns the answer to the query along with the page it found the answer from.
       inputs:
         query:
           title: Query
           type: string
           required: true
-          description: |
-            "The query that the user has requested to find information about"
+          description: "The query to search for"
+    - key: turn-space-separated-to-array
+      name: Turn Space Separated to Array
+      function: spaceSeparatedToArray
+      actionType: GET
+      description: Given a space-separated string, this action returns it in to an array.
+      inputs:
+        spaceSeparatedKeywords:
+          title: SpaceSeparatedKeywords
+          type: string
+          required: true
+          description: "The space-separated keywords to extract into an array"
+    - key: find-info-in-page
+      name: Find Info In Page
+      function: findInfoInPage
+      actionType: GET
+      description: Analyze if a page contains information about a query
+      inputs:
+        query:
+          title: Query
+          type: string
+          required: true
+          description: "The query to look for"
+        pageContent:
+          title: Page Content
+          type: string
+          required: true
+          description: "The content of the page to analyze"
+        pageTitle:
+          title: Page Title
+          type: string
+          required: true
+          description: "The title of the page being analyzed"
   function:
     - key: deepSearch
       handler: index.deepSearch
+    - key: findInfoInPage
+      handler: index.findInfoInPage
+    - key: spaceSeparatedToArray
+      handler: index.spaceSeparatedToArray
 app:
   runtime:
     name: nodejs22.x
