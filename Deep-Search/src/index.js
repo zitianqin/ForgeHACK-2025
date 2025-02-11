@@ -36,7 +36,9 @@ async function analyseContent(query, pageContent) {
     ${pageContent}
     """
 
-    Note that if the user is asking for contact information, Slack, Instagram, Facebook, email, phone etc. are all ways of contacting someone.
+    Note that if the user is asking for contact information, A slack account or channel is one of many valid ways of contacting someone.
+
+    If someone is requesting a link or photo, make sure to include that in the response.
     
     Return ONLY a JSON object with this format:
     {
@@ -96,6 +98,22 @@ function cleanStyleTags(content) {
   return cleanText;
 }
 
+function cleanEmoticons(content) {
+  // Remove Confluence emoticon tags
+  let cleanText = content.replace(/<ac:emoticon[^>]*\/>/g, "");
+
+  // Remove emoji shortnames like :smile:
+  cleanText = cleanText.replace(/:[a-zA-Z0-9_+-]+:/g, "");
+
+  // Remove unicode emojis
+  cleanText = cleanText.replace(/[\u{1F300}-\u{1F9FF}\u{2700}-\u{27BF}]/gu, "");
+
+  // Remove nbsp after emoticons
+  cleanText = cleanText.replace(/&nbsp;/g, " ");
+
+  return cleanText;
+}
+
 export async function deepSearch(payload) {
   const query = payload.query;
   console.log(`Searching Confluence for query: ${query}`);
@@ -145,15 +163,16 @@ export async function deepSearch(payload) {
       }
 
       const content = await contentResponse.json();
-      const pageContent = cleanStyleTags(content.body.storage.value);
-      console.log(`Page content: ${pageContent}`);
+      let cleanContent = cleanStyleTags(content.body.storage.value);
+      cleanContent = cleanEmoticons(cleanContent);
+      console.log(`Cleaned page content: ${cleanContent}`);
 
       // Look for if any of the keywords is in content
       if (
-        keywords.split(" ").some((keyword) => pageContent.includes(keyword))
+        keywords.split(" ").some((keyword) => cleanContent.includes(keyword))
       ) {
         // Analyse content with LLM
-        const analysis = await analyseContent(query, pageContent);
+        const analysis = await analyseContent(query, cleanContent);
 
         if (analysis.isMatch) {
           results.push({
@@ -183,7 +202,6 @@ export async function deepSearch(payload) {
   } catch (error) {
     console.error("Error searching for information:", error);
     return {
-      matches: [],
       message: `Error searching for information: ${error.message}`,
     };
   }
