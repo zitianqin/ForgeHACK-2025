@@ -30,11 +30,13 @@ async function extractKeywords(query) {
 
 async function analyseContent(query, pageContent) {
   const prompt = `
-    Analyze if this content answers the query: "${query}"
+    Analyze if this content answers or partially answers the query: "${query}"
     
     Content: """
     ${pageContent}
     """
+
+    Note that if the user is asking for contact information, Slack, Instagram, Facebook, email, phone etc. are all ways of contacting someone.
     
     Return ONLY a JSON object with this format:
     {
@@ -98,6 +100,8 @@ export async function deepSearch(payload) {
   const query = payload.query;
   console.log(`Searching Confluence for query: ${query}`);
 
+  const results = [];
+
   // Extract keywords from query
   const keywords = await extractKeywords(query);
   console.log(`Extracted keywords: ${keywords}`);
@@ -148,29 +152,38 @@ export async function deepSearch(payload) {
       if (
         keywords.split(" ").some((keyword) => pageContent.includes(keyword))
       ) {
-        // If a keyword is found, call the llm with the query and the page content to see if a match is found. if not, continue
-        // Analyze content with LLM
+        // Analyse content with LLM
         const analysis = await analyseContent(query, pageContent);
 
         if (analysis.isMatch) {
-          return {
+          results.push({
             pageTitle: page.title,
             pageId: page.id,
             url: page._links.webui,
             relevantText: analysis.relevantText,
             confidence: analysis.confidence,
-            message: `Found matching content in "${page.title}" (confidence: ${analysis.confidence})`,
-          };
+          });
         }
       }
     }
 
-    const notFoundMessage = `Could not find any information matching "${payload.query}". Please try rephrasing your query.`;
-    console.log("No matching content found:", notFoundMessage);
-    return { message: notFoundMessage };
+    if (results.length > 0) {
+      // Sort results by confidence
+      results.sort((a, b) => b.confidence - a.confidence);
+      return {
+        matches: results,
+        message: `Found ${results.length} relevant pages. Results are sorted by confidence.`,
+      };
+    }
+
+    return {
+      matches: [],
+      message: `Could not find any information matching "${payload.query}". Please try rephrasing your query.`,
+    };
   } catch (error) {
     console.error("Error searching for information:", error);
     return {
+      matches: [],
       message: `Error searching for information: ${error.message}`,
     };
   }

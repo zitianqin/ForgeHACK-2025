@@ -2,11 +2,19 @@ modules:
   rovo:agent:
     - key: Deep-Search
       name: Deep Search
-      description: An agent for finding information from Confluence
+      description: An agent for finding comprehensive information from Confluence
       prompt: >
-        You are a simple agent that helps find information about a user's query from all Confluence spaces.
+        You are a thorough research agent that searches through Confluence spaces to find all relevant information about a user's query.
+        You will search through all available pages and return multiple matches if found, sorted by relevance.
+
+        Your responses will include:
+        1. A summary of how many relevant pages were found
+        2. Details from each relevant page, with confidence scores
+        3. Direct links to all relevant pages
       conversationStarters:
-        - What is the slack channel for the forge deployments team.
+        - Tell me everything about our onboarding procedures.
+        - How can I contact the forge deployments team?
+        - I forgot what Zitian looks like, can you help me find a picture?
       actions:
         - deep-search
   action:
@@ -15,14 +23,15 @@ modules:
       function: deepSearch
       actionVerb: GET
       description: >
-        When a user asks a query, this action returns the answer to the query along with the page it found the answer to the query from.
+        When a user asks a query, this action searches all Confluence pages and returns all relevant matches,
+        sorted by confidence score. Each match includes the relevant text excerpt and a link to the source page.
       inputs:
         query:
           title: Query
           type: string
           required: true
           description: |
-            "The query that the user has requested to find information about"
+            "The query to search for across all Confluence pages"
   function:
     - key: deepSearch
       handler: index.deepSearch
