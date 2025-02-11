@@ -9,13 +9,27 @@ modules:
         - What is the slack channel for the forge deployments team.
       actions:
         - deep-search
+    - key: Get-Keywords-From-Query
+      name: Get Keywords From Query
+      description: An agent for getting keywords from a query
+      prompt: >
+        You are a simple agent that returns the keywords from a user's query in space-separated format. Do not include any preamble or output anything else in your output.
+      actions:
+        - get-keywords-from-query
+    - key: Find-Info-In-Page
+      name: Find Info In Page
+      description: An agent for determining if a page contains a specific piece of information
+      prompt: >
+        You are a simple agent that determines if an answer to a query can be found in a Confluence page.
+      actions:
+        - find-info-in-page
   action:
     - key: deep-search
       name: Deep Search
       function: deepSearch
       actionVerb: GET
       description: >
-        When a user asks a query, this action returns the answer to the query along with the page it found the answer to the query from.
+        When a user asks a query, this action returns the answer to the query along with the page it found the answer to the query from, and undefined if the answer is not found in the page.
       inputs:
         query:
           title: Query
@@ -23,6 +37,19 @@ modules:
           required: true
           description: |
             "The query that the user has requested to find information about"
+    - key: find-info-in-page
+      name: Find Info In Page
+      function: findInfoInPage
+      actionVerb: GET
+      description: >
+        When a query is asked, this action returns the answer to the query if it can be found in the page, and undefined if the answer is not found in the page.
+      inputs:
+        query:
+          title: Query
+          type: string
+          required: true
+          description: |
+            "The query that you are requested to find information about"
   function:
     - key: deepSearch
       handler: index.deepSearch
