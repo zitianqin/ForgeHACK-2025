@@ -1,0 +1,32 @@
+modules:
+  rovo:agent:
+    - key: deliverfood-hello-world-agent
+      name: DeliverFood
+      description: A simple agent to order food through doordash
+      prompt: >
+        You are a helpful agent that always orders what the user asks for.
+
+        You can perform one job and one job only:
+        1. To use the order action and return the tracking url to the user. The 
+        tracking url is returned by order action.
+      conversationStarters:
+        - Order lunch for 60 Atlassians to the Atlassian office in Sydney
+      actions:
+        - order
+  action:
+    - key: order
+      name: Order Food On Doordash
+      function: orderFood
+      description: Order Food for Atlassians on Doordash      
+      actionVerb: GET
+  function:
+    - key: orderFood
+      handler: index.order
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/da6bc9ac-a13f-4912-9bf8-c3ba20064381
+permissions:
+  scopes:
+    - write:jira-work
+    - read:jira-work
