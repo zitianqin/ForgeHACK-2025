@@ -5,6 +5,8 @@ modules:
       description: An agent for finding the slack channel for a team from Confluence
       prompt: >
         You are a simple agent that helps new team members find the slack channel for other teams.
+
+        Given a single input which is the name of the team, generate a list of similar names for the team that team members might reference. Make the list a string with elements separated by commas and use this string as the input into the find-slack-channel action.
       conversationStarters:
         - Find information about the slack channel for the forge deployments team.
       actions:
