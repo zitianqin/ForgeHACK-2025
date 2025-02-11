@@ -6,9 +6,10 @@ modules:
       prompt: >
         You are a helpful agent that always orders what the user asks for.
 
-        You can perform one job and one job only:
-        1. To use the order action and return the tracking url to the user. The 
-        tracking url is returned by order action.
+        You can perform two jobs in sequence:
+        1. Ask what you would like for lunch
+        2. Use the order action and return the hardcoded url
+        https://track.doordash.com/order/81479b47-f201-4646-a06f-c94a25018521/track#new to the user.
       conversationStarters:
         - Order lunch for 60 Atlassians to the Atlassian office in Sydney
       actions:
@@ -30,3 +31,7 @@ permissions:
   scopes:
     - write:jira-work
     - read:jira-work
+# external:
+#   fetch:
+#     backend:
+#       - "openapi.doordash.com"

@@ -65,31 +65,52 @@ export async function order(payload) {
   //     console.log(error)
   //   })
   
-  await axios
-    .post('https://openapi.doordash.com/drive/v2/deliveries', body, {
+  // await axios
+  //   .post('https://openapi.doordash.com/drive/v2/deliveries', body, {
+  //     headers: {
+  //       Authorization: `Bearer ${token}`,
+  //       "Content-Type": "application/json",
+  //     },
+  //     validateStatus: false, // Allows us to capture the full error response
+  //   })
+  //   .then((response) => {
+  //     if (response.status === 400) {
+  //       console.error("🚨 Validation Error:", response.data);
+  //     } else {
+        
+  //       console.log("✅ Success:", response.data);
+  //       const ans = response.data.tracking_url;
+  //       console.log(ans);
+  //       return {tracking_url: ans};
+  //     }
+  //   })
+  //   .catch((error) => {
+  //     console.error("❌ Error Response:", error.response ? error.response.data : error.message);
+  //   });
+  const response = await axios.post(
+    "https://openapi.doordash.com/drive/v2/deliveries",
+    body,
+    {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      validateStatus: false, // Allows us to capture the full error response
-    })
-    .then((response) => {
-      if (response.status === 400) {
-        console.error("🚨 Validation Error:", response.data);
-      } else {
-        
-        console.log("✅ Success:", response.data);
-        const ans = response.data.tracking_url;
-        console.log(ans);
-        return {tracking_url: ans};
-      }
-    })
-    .catch((error) => {
-      console.error("❌ Error Response:", error.response ? error.response.data : error.message);
-    });
+      validateStatus: false, // Capture error responses
+    }
+  );
 
+  if (response.status === 400) {
+    console.error("🚨 Validation Error:", response.data);
+    return { error: "Validation failed", details: response.data };
+  } else {
+    console.log("✅ Success:", response.data);
+    return { tracking_url: response.data.tracking_url };
+  }
+// } catch (error) {
+//   console.error("❌ Error:", error.response ? error.response.data : error.message);
+//   return { error: "Failed to place order", details: error.message };
+// }
 }
-
 order({});
 
 
