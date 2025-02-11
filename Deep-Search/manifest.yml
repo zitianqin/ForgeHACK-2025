@@ -83,3 +83,7 @@ app:
 permissions:
   scopes:
     - read:page:confluence
+  external:
+    fetch:
+      backend:
+        - "*"
