@@ -1,8 +1,42 @@
 import api, { route } from "@forge/api";
+import Groq from "groq-sdk";
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+async function extractKeywords(query) {
+  const prompt = `
+    Extract only the important keywords from this query as space-separated words.
+    Rules:
+    - Return ONLY the keywords, no other text
+    - Separate keywords with single spaces
+    - Remove articles, prepositions, and other stop words
+    - Keep only meaningful search terms
+    - Do not include punctuation
+    - Do not include explanatory text
+    
+    Query: "${query}"
+    `;
+
+  const completion = await groq.chat.completions.create({
+    messages: [{ role: "user", content: prompt }],
+    model: "mixtral-8x7b-32768",
+    temperature: 0.1, // Low temperature for more consistent output
+  });
+
+  return completion.choices[0].message.content.trim();
+}
 
 export async function deepSearch(payload) {
-  const query = payload.query.toLowerCase();
+  const query = payload.query;
   console.log(`Searching Confluence for query: ${query}`);
+
+  // Extract keywords from query
+  const keywords = await extractKeywords(query);
+  console.log(`Extracted keywords: ${keywords}`);
+
+  return { message: `Extracted keywords: ${keywords}` };
 
   try {
     const response = await api
@@ -43,7 +77,7 @@ export async function deepSearch(payload) {
       }
 
       const content = await contentResponse.json();
-      const pageContent = content.body.storage.value.toLowerCase();
+      const pageContent = content.body.storage.value;
 
       // Look for query matches in content
       if (pageContent.includes(query)) {
