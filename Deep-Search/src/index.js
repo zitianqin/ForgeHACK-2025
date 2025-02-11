@@ -1,10 +1,60 @@
 import api, { route } from "@forge/api";
 
-export async function deepSearch(payload) {
+export async function findInfoInPage(payload) {
+  const { query, pageContent, pageTitle } = payload;
+  console.log(`Analyzing page content for query: ${query}`);
+
+  // Use the page analyzer agent to determine if the page contains an answer
+  // Look for query keywords in content and extract relevant information
+  if (pageContent.toLowerCase().includes(query.toLowerCase())) {
+    const matchIndex = pageContent.toLowerCase().indexOf(query.toLowerCase());
+    const contextStart = Math.max(0, matchIndex - 150);
+    const contextEnd = Math.min(pageContent.length, matchIndex + 150);
+    const relevantContext = pageContent.slice(contextStart, contextEnd);
+
+    console.log(
+      `Found relevant information in page "${pageTitle}": ${relevantContext}`
+    );
+
+    return {
+      found: true,
+      answer: relevantContext,
+      confidence: "high",
+      context: `Found in section: "${relevantContext}"`,
+    };
+  }
+
+  console.log(`No relevant information found in page "${pageTitle}"`);
+
+  return {
+    found: false,
+    answer: undefined,
+    confidence: "none",
+    context: `No relevant information found in page "${pageTitle}"`,
+  };
+}
+
+/**
+ * Convert space-separated keywords to an array
+ * @param {*} spaceSeparatedKeywords - Space-separated keywords
+ * @returns {Array} - Array of keywords
+ */
+export async function spaceSeparatedToArray(spaceSeparatedKeywords) {
+  console.log(
+    `Converting space-separated keywords to array: ${spaceSeparatedKeywords}`
+  );
+  return spaceSeparatedKeywords.toLowerCase().split(" ").join(" ");
+}
+
+export async function deepSearch(payload, context) {
   const query = payload.query.toLowerCase();
   console.log(`Searching Confluence for query: ${query}`);
 
   try {
+    // Get keywords from query using the keywords agent
+    const keywords = await context.invoke("get-keywords-from-query", { query });
+    console.log(`Extracted keywords: ${keywords}`);
+
     const response = await api
       .asUser()
       .requestConfluence(route`/wiki/api/v2/pages?limit=100`, {
@@ -43,22 +93,23 @@ export async function deepSearch(payload) {
       }
 
       const content = await contentResponse.json();
-      const pageContent = content.body.storage.value.toLowerCase();
+      const pageContent = content.body.storage.value;
 
-      // Look for query matches in content
-      if (pageContent.includes(query)) {
-        // Extract relevant context around the query match
-        const matchIndex = pageContent.indexOf(query);
-        const contextStart = Math.max(0, matchIndex - 150);
-        const contextEnd = Math.min(pageContent.length, matchIndex + 150);
-        const relevantContext = pageContent.slice(contextStart, contextEnd);
+      // Use findInfoInPage to analyze the page content
+      const pageAnalysis = await context.invoke("find-info-in-page", {
+        query: keywords,
+        pageContent: pageContent,
+        pageTitle: page.title,
+      });
 
+      if (pageAnalysis.found) {
         const result = {
           pageTitle: page.title,
           pageId: page.id,
           url: page._links.webui,
-          relevantContext: relevantContext,
-          message: `Found relevant information in page "${page.title}". The query "${payload.query}" appears in this context: "...${relevantContext}..."`,
+          answer: pageAnalysis.answer,
+          confidence: pageAnalysis.confidence,
+          message: `Found relevant information in page "${page.title}". ${pageAnalysis.context}`,
         };
         console.log("Found matching content:", result);
         return result;
