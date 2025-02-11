@@ -6,6 +6,7 @@
   "private": true,
   "license": "MIT",
   "dependencies": {
-    "@forge/api": "^4.3.0"
+    "@forge/api": "^4.3.0",
+    "groq-sdk": "^0.15.0"
   }
 }

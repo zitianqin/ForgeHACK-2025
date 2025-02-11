@@ -1,60 +1,37 @@
 import api, { route } from "@forge/api";
+import Groq from "groq-sdk";
 
-export async function findInfoInPage(payload) {
-  const { query, pageContent, pageTitle } = payload;
-  console.log(`Analyzing page content for query: ${query}`);
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
-  // Use the page analyzer agent to determine if the page contains an answer
-  // Look for query keywords in content and extract relevant information
-  if (pageContent.toLowerCase().includes(query.toLowerCase())) {
-    const matchIndex = pageContent.toLowerCase().indexOf(query.toLowerCase());
-    const contextStart = Math.max(0, matchIndex - 150);
-    const contextEnd = Math.min(pageContent.length, matchIndex + 150);
-    const relevantContext = pageContent.slice(contextStart, contextEnd);
+async function analyseWithGroq(query, content) {
+  const prompt = `
+    Given the following content, determine if it contains relevant information for this query: "${query}"
+    If it does, extract the most relevant portion.
+    Content: ${content}
+    
+    Respond in JSON format:
+    {
+      "isRelevant": boolean,
+      "relevantText": string or null,
+      "confidence": "high" | "medium" | "low"
+    }
+  `;
 
-    console.log(
-      `Found relevant information in page "${pageTitle}": ${relevantContext}`
-    );
+  const completion = await groq.chat.completions.create({
+    messages: [{ role: "user", content: prompt }],
+    model: "mixtral-8x7b-32768",
+  });
 
-    return {
-      found: true,
-      answer: relevantContext,
-      confidence: "high",
-      context: `Found in section: "${relevantContext}"`,
-    };
-  }
-
-  console.log(`No relevant information found in page "${pageTitle}"`);
-
-  return {
-    found: false,
-    answer: undefined,
-    confidence: "none",
-    context: `No relevant information found in page "${pageTitle}"`,
-  };
+  return JSON.parse(completion.choices[0].message.content);
 }
 
-/**
- * Convert space-separated keywords to an array
- * @param {*} spaceSeparatedKeywords - Space-separated keywords
- * @returns {Array} - Array of keywords
- */
-export async function spaceSeparatedToArray(spaceSeparatedKeywords) {
-  console.log(
-    `Converting space-separated keywords to array: ${spaceSeparatedKeywords}`
-  );
-  return spaceSeparatedKeywords.toLowerCase().split(" ").join(" ");
-}
-
-export async function deepSearch(payload, context) {
+export async function deepSearch(payload) {
   const query = payload.query.toLowerCase();
   console.log(`Searching Confluence for query: ${query}`);
 
   try {
-    // Get keywords from query using the keywords agent
-    const keywords = await context.invoke("get-keywords-from-query", { query });
-    console.log(`Extracted keywords: ${keywords}`);
-
     const response = await api
       .asUser()
       .requestConfluence(route`/wiki/api/v2/pages?limit=100`, {
@@ -72,7 +49,6 @@ export async function deepSearch(payload, context) {
     const data = await response.json();
     console.log(`Searching through ${data.results.length} pages...`);
 
-    // Search through pages for query matches
     for (const page of data.results) {
       console.log(`Analyzing page: "${page.title}"`);
 
@@ -95,30 +71,25 @@ export async function deepSearch(payload, context) {
       const content = await contentResponse.json();
       const pageContent = content.body.storage.value;
 
-      // Use findInfoInPage to analyze the page content
-      const pageAnalysis = await context.invoke("find-info-in-page", {
-        query: keywords,
-        pageContent: pageContent,
-        pageTitle: page.title,
-      });
+      const analysis = await analyseWithGroq(query, pageContent);
 
-      if (pageAnalysis.found) {
+      if (analysis.isRelevant && analysis.relevantText) {
         const result = {
           pageTitle: page.title,
           pageId: page.id,
           url: page._links.webui,
-          answer: pageAnalysis.answer,
-          confidence: pageAnalysis.confidence,
-          message: `Found relevant information in page "${page.title}". ${pageAnalysis.context}`,
+          answer: analysis.relevantText,
+          confidence: analysis.confidence,
+          message: `Found relevant information in page "${page.title}" with ${analysis.confidence} confidence.`,
         };
         console.log("Found matching content:", result);
         return result;
       }
     }
 
-    const notFoundMessage = `Could not find any information matching "${payload.query}". Please try rephrasing your query.`;
-    console.log("No matching content found:", notFoundMessage);
-    return { message: notFoundMessage };
+    return {
+      message: `Could not find any information matching "${query}". Please try rephrasing your query.`,
+    };
   } catch (error) {
     console.error("Error searching for information:", error);
     return {
