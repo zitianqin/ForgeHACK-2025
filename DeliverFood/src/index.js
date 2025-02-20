@@ -6,10 +6,6 @@ import nodemailer from "nodemailer";
 
 dotenv.config();
 
-const ACCESS_KEY = "783100bb-8615-439e-916e-24c3a7ccd32d";
-const DEVELOPER_ID = "56956d93-73d0-4313-a245-9e9eb9d13190";
-const SIGNING_SECRET = "71zEFoQQbZnVwZprLJwQpbVxY7b35tA2B4DFQSg1TT8";
-
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
